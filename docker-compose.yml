@@ -2,6 +2,7 @@ version: '3'
 volumes:
   postgres_data:
   wdqs_data:
+  temp_data:
 services:
   mapshaper:
     image: crazycapivara/docker-mapshaper
@@ -20,11 +21,13 @@ services:
   wdqs:
     build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
     volumes:
-      - wdqs_data:/opt/wdqs
+      - wdqs_data:/var/lib/wdqs
+      - temp_data:/var/tmp
     ports:
       - "9999"
     networks:
       - wdqs_conn
+    env_file: .env
   postgres:
     image: "openmaptiles/postgis:2.9"
     volumes:
