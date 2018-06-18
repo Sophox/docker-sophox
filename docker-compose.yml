@@ -10,6 +10,18 @@ services:
       - "5555"
     networks:
       - wdqs_conn
+  osmupdater:
+    build: ./osmupdater
+    networks:
+      - postgres_conn
+    volumes:
+      - wdqs_data:/var/lib/wdqs
+      - temp_data:/var/tmp
+      - ./:/var/lib/osm2pgsql
+    command: /var/lib/osm2pgsql/osmUpdate.sh
+    depends_on:
+      - postgres
+    env_file: .env
   osmregions:
     build: https://github.com/nickpeihl/osm-regions-server.git#dockerize
     ports: 
@@ -18,6 +30,9 @@ services:
       - postgres_conn
       - wdqs_conn
     env_file: .env
+    depends_on:
+      - wdqs
+      - postgres
   wdqs:
     build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
     volumes:
@@ -28,6 +43,9 @@ services:
     networks:
       - wdqs_conn
     env_file: .env
+  # wdqs-updater:
+  #   build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+  #   entrypoint: runUpdate.sh
   postgres:
     image: "openmaptiles/postgis:2.9"
     volumes:
@@ -43,6 +61,8 @@ services:
       - "80"
     networks:
       - wdqs_conn
+    depends_on:
+      - wdqs
   proxy:
     image: nginx
     volumes: 
