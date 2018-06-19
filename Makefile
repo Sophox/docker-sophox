@@ -36,7 +36,7 @@ import-wikidata: start-blazegraph
 # Requires the wdqs service to be running (e.g. `docker-compose up -d`).
 	docker-compose exec wdqs loadRestAPI.sh -n wdq -h http://wdqs:9999 -d /var/tmp/ttls
 
-download-osm: init-osm-replication
+download-osm: init-osm-replication download-osm-state
 # Download the latest OpenStreetMap data if it doesn't exist.
 # OSM data is saved to the project temp volume. Interrupted downloads are continued.
 
@@ -49,16 +49,27 @@ download-osm: init-osm-replication
 		byrnedo/alpine-curl \
 			--retry 10 \
 			--retry-delay 60 \
-			-SL -C - \
-			http://download.openstreetmap.fr/extracts/europe/france{-latest.osm.pbf,.state.txt} \
-			-o france-latest.osm.pbf -o /var/lib/wdqs/geosync_workdir/state.text
+			-SL \
+			https://planet.openstreetmap.org/pbf/planet-latest.osm.pbf \
+			-o planet-latest.osm.pbf
+
+download-osm-state:
+# Create a state file for the planet download. The state file is generated for 1 week previous
+# in order not to miss any data changes. Since the planet dump is weekly and we generate this 
+# file when we download the planet-latest.osm.pbf file, we should not miss any changes.
+	docker run \
+                -v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
+                byrnedo/alpine-curl \
+			-SL \
+			"https://replicate-sequences.osm.mazdermind.de/?"`date -u -d@"$$(( \`date +%s\`-1*7*24*60*60))" +"%Y-%m-%d"`"T00:00:00Z" \
+			-o /var/lib/wdqs/geosync_workdir/state.txt
 
 prep-osm: 
 # Convert OSM Planet into import files (ttls)
 	docker run -it -v $(COMPOSE_PROJECT_NAME)_temp_data:/var/tmp \
 		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
 		osm2rdf -c /var/lib/wdqs/wd_nodes.cache \
-			-s dense parse /var/tmp/france-latest.osm.pbf /var/tmp/ttls
+			-s dense parse /var/tmp/planet-latest.osm.pbf /var/tmp/ttls
 
 download-files: download-wikidata download-osm
 
@@ -105,7 +116,7 @@ import-osm: start-postgres
 		--create --slim --database $(POSTGRES_DB) --flat-nodes /var/lib/wdqs/rgn_nodes.cache \
 		-C 26000 --number-processes 8 --hstore --style /var/lib/osm2pgsql/wikidata.style \
 		--tag-transform-script /var/lib/osm2pgsql/wikidata.lua \
-		/var/tmp/france-latest.osm.pbf
+		/var/tmp/planet-latest.osm.pbf
 
 create-indexes:
 	docker run -it --env-file .env --network=$(COMPOSE_PROJECT_NAME)_postgres_conn \
