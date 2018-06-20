@@ -11,7 +11,7 @@ services:
     networks:
       - wdqs_conn
   osmupdater:
-    image: nickpeihl/osmupdater:latest
+    build: https://github.com/nickpeihl/docker-osmupdater.git
     networks:
       - postgres_conn
     volumes:
@@ -23,7 +23,7 @@ services:
       - postgres
     env_file: .env
   osmregions:
-    image: nickpeihl/osm-regions-server:latest
+    build: https://github.com/nickpeihl/osm-regions-server.git#dockerize
     ports: 
       - "9978"
     networks: 
@@ -31,7 +31,21 @@ services:
       - wdqs_conn
     env_file: .env
     depends_on:
+      - wdqs
       - postgres
+  wdqs:
+    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    volumes:
+      - wdqs_data:/var/lib/wdqs
+      - temp_data:/var/tmp
+    ports:
+      - "9999"
+    networks:
+      - wdqs_conn
+    env_file: .env
+  # wdqs-updater:
+  #   build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+  #   entrypoint: runUpdate.sh
   postgres:
     image: "openmaptiles/postgis:2.9"
     volumes:
@@ -42,24 +56,22 @@ services:
       - "5432"
     env_file: .env
   web:
-    image: nickpeihl/sophox-query-gui
+    build: https://github.com/nickpeihl/wikidata-query-gui.git#dockerize
     ports:
       - "80"
     networks:
       - wdqs_conn
+    depends_on:
+      - wdqs
   proxy:
     image: nginx
     volumes: 
       - ./sophox.template:/etc/nginx/conf.d/sophox.template
     ports:
-      - "80:8080"
+      - "8080:80"
     networks:
       - wdqs_conn
       - postgres_conn
-    depends_on:
-      - osmregions
-      - mapshaper
-      - web
     command: sh -c "envsubst '$$NGINX_HOST $$NGINX_PORT' < /etc/nginx/conf.d/sophox.template > /etc/nginx/conf.d/default.conf && nginx-debug -g 'daemon off;'" 
     env_file: .env
 networks:
