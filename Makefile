@@ -64,6 +64,44 @@ download-osm-state:
 			"https://replicate-sequences.osm.mazdermind.de/?"`date -u -d@"$$(( \`date +%s\`-1*7*24*60*60))" +"%Y-%m-%d"`"T00:00:00Z" \
 			-o /var/lib/wdqs/geosync_workdir/state.txt
 
+download-osm-example: init-osm-replication download-osm-state
+# Download the latest OpenStreetMap data if it doesn't exist.
+# OSM data is saved to the project temp volume. Interrupted downloads are continued.
+
+# TODO curl bug returns FTP transient problem if file already exists.
+# See https://github.com/curl/curl/issues/2464
+	docker run \
+		-v $(COMPOSE_PROJECT_NAME)_temp_data:/var/tmp \
+		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
+		-w /var/tmp \
+		byrnedo/alpine-curl \
+			--retry 10 \
+			--retry-delay 60 \
+			-SL \
+			http://download.openstreetmap.fr/extracts/europe/ireland-latest.osm.pbf\
+			-o ireland-latest.osm.pbf
+
+import-osm-example: start-postgres
+# Import OSM Ireland file into PostgreSQL. Must run `download-osm` first.
+	docker run -it --env-file .env \
+		--network=$(COMPOSE_PROJECT_NAME)_postgres_conn \
+		-e OSM2PGSQL_VERSION=$(OSM2PGSQL_VERSION) \
+		-e PGHOST=$(POSTGRES_HOST) \
+		-e PGPORT=$(POSTGRES_PORT) \
+		-e PGUSER=$(POSTGRES_USER) \
+		-e PGPASSWORD=$(POSTGRES_PASSWORD) \
+		-e PGDATABASE=$(POSTGRES_DB) \
+		-v $(COMPOSE_PROJECT_NAME)_temp_data:/var/tmp \
+		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
+		-v $(shell pwd):/var/lib/osm2pgsql \
+		--entrypoint osm2pgsql \
+		openfirmware/osm2pgsql \
+		--create --slim --database $(POSTGRES_DB) --flat-nodes /var/lib/wdqs/rgn_nodes.cache \
+		-C 26000 --number-processes 8 --hstore --style /var/lib/osm2pgsql/wikidata.style \
+		--tag-transform-script /var/lib/osm2pgsql/wikidata.lua \
+		/var/tmp/ireland-latest.osm.pbf
+	
+
 prep-osm: 
 # Convert OSM Planet into import files (ttls)
 	docker run -it -v $(COMPOSE_PROJECT_NAME)_temp_data:/var/tmp \
@@ -96,6 +134,13 @@ init-osm-replication:
 		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
 		--name helper alpine 
 	docker cp ./geosync_workdir helper:/var/lib/wdqs
+	docker rm helper
+
+init-osm-replication-example:
+	docker run -v $(COMPOSE_PROJECT_NAME)_temp_data:/var/tmp \
+		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
+		--name helper alpine 
+	docker cp ./geosync_workdir_example helper:/var/lib/wdqs/geosync_workdir
 	docker rm helper
 
 import-osm: start-postgres
