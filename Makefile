@@ -157,7 +157,7 @@ import-osm: start-postgres
 		-v $(COMPOSE_PROJECT_NAME)_wdqs_data:/var/lib/wdqs \
 		-v $(shell pwd):/var/lib/osm2pgsql \
 		--entrypoint osm2pgsql \
-		openfirmware/osm2pgsql \
+		nickpeihl/osmupdater \
 		--create --slim --database $(POSTGRES_DB) --flat-nodes /var/lib/wdqs/rgn_nodes.cache \
 		-C 26000 --number-processes 8 --hstore --style /var/lib/osm2pgsql/wikidata.style \
 		--tag-transform-script /var/lib/osm2pgsql/wikidata.lua \
