@@ -40,6 +40,7 @@ services:
       - postgres_conn
     ports:
       - "5432"
+    command: -c 'max_wal_size=5GB'
     env_file: .env
   web:
     image: nickpeihl/sophox-query-gui
