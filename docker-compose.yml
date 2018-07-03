@@ -47,6 +47,8 @@ services:
       - "80"
     networks:
       - wdqs_conn
+    logging:
+      driver: none
   proxy:
     image: nginx
     volumes: 
@@ -56,6 +58,8 @@ services:
     networks:
       - wdqs_conn
       - postgres_conn
+    logging:
+      driver: none
     depends_on:
       - osmregions
       - mapshaper
