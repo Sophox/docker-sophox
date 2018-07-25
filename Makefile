@@ -28,6 +28,9 @@ prep-wikidata:
 start-blazegraph:
 	docker-compose up -d wdqs
 
+stop-blazegraph:
+	docker-compose stop --time=30 wdqs
+
 start-postgres:
 	docker-compose up -d postgres
 

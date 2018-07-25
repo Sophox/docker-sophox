@@ -4,13 +4,39 @@ volumes:
   wdqs_data:
   temp_data:
 services:
+  wdqs:
+    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    volumes:
+      - wdqs_data:/var/lib/wdqs
+      - temp_data:/var/tmp
+    ports:
+      - "9999"
+    networks:
+      - wdqs_conn
+    env_file: .env
+  wdqs-updater:
+    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    entrypoint: 
+      - runUpdate.sh
+      - -h
+      - http://wdqs:9999
+    networks:
+      - wdqs_conn
+  osm-updater:
+    build: https://github.com/nickpeihl/osm2rdf.git#dockerize
+    entrypoint:
+      - runOsmUpdater.sh
+    volumes:
+      - wdqs_data:/var/lib/wdqs
+    networks:
+      - wdqs_conn
   mapshaper:
     image: crazycapivara/docker-mapshaper
     ports: 
       - "5555"
     networks:
       - wdqs_conn
-  osmupdater:
+  pg-updater:
     image: nickpeihl/osmupdater:latest
     networks:
       - postgres_conn
@@ -43,7 +69,7 @@ services:
     command: -c 'max_wal_size=5GB'
     env_file: .env
   web:
-    image: nickpeihl/sophox-query-gui
+    image: nickpeihl/sophox-query-gui:dockerize
     ports:
       - "80"
     networks:
