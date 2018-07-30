@@ -5,7 +5,7 @@ volumes:
   temp_data:
 services:
   wdqs:
-    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    build: https://github.com/sophox/wikidata-query-rdf.git#dockerize
     volumes:
       - wdqs_data:/var/lib/wdqs
       - temp_data:/var/tmp
@@ -15,7 +15,7 @@ services:
       - wdqs_conn
     env_file: .env
   wdqs-updater:
-    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    build: https://github.com/sophox/wikidata-query-rdf.git#dockerize
     entrypoint: 
       - runUpdate.sh
       - -h
@@ -25,7 +25,11 @@ services:
   osm-updater:
     build: https://github.com/nickpeihl/osm2rdf.git#dockerize
     entrypoint:
-      - runOsmUpdater.sh
+      - ./runOsmUpdater.sh
+      - -c
+      - /var/lib/wdqs/rgn_nodes.cache
+      - -s
+      - dense
     volumes:
       - wdqs_data:/var/lib/wdqs
     networks:
