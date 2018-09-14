@@ -4,44 +4,14 @@ volumes:
   wdqs_data:
   temp_data:
 services:
-  wdqs:
-    build: https://github.com/sophox/wikidata-query-rdf.git#dockerize
-    volumes:
-      - wdqs_data:/var/lib/wdqs
-      - temp_data:/var/tmp
-    ports:
-      - "9999"
-    networks:
-      - wdqs_conn
-    env_file: .env
-  wdqs-updater:
-    build: https://github.com/sophox/wikidata-query-rdf.git#dockerize
-    entrypoint: 
-      - runUpdate.sh
-      - -h
-      - http://wdqs:9999
-    networks:
-      - wdqs_conn
-  osm-updater:
-    build: https://github.com/nickpeihl/osm2rdf.git#dockerize
-    entrypoint:
-      - ./runOsmUpdater.sh
-      - -c
-      - /var/lib/wdqs/rgn_nodes.cache
-      - -s
-      - dense
-    volumes:
-      - wdqs_data:/var/lib/wdqs
-    networks:
-      - wdqs_conn
   mapshaper:
     image: crazycapivara/docker-mapshaper
     ports: 
       - "5555"
     networks:
       - wdqs_conn
-  pg-updater:
-    image: nickpeihl/osmupdater:latest
+  osmupdater:
+    build: https://github.com/nickpeihl/docker-osmupdater.git
     networks:
       - postgres_conn
     volumes:
@@ -53,7 +23,7 @@ services:
       - postgres
     env_file: .env
   osmregions:
-    image: nickpeihl/osm-regions-server:latest
+    build: https://github.com/nickpeihl/osm-regions-server.git#dockerize
     ports: 
       - "9978"
     networks: 
@@ -61,7 +31,21 @@ services:
       - wdqs_conn
     env_file: .env
     depends_on:
+      - wdqs
       - postgres
+  wdqs:
+    build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+    volumes:
+      - wdqs_data:/var/lib/wdqs
+      - temp_data:/var/tmp
+    ports:
+      - "9999"
+    networks:
+      - wdqs_conn
+    env_file: .env
+  # wdqs-updater:
+  #   build: https://github.com/nickpeihl/wikidata-query-rdf.git#dockerize
+  #   entrypoint: runUpdate.sh
   postgres:
     image: "openmaptiles/postgis:2.9"
     volumes:
@@ -70,31 +54,24 @@ services:
       - postgres_conn
     ports:
       - "5432"
-    command: -c 'max_wal_size=5GB'
     env_file: .env
   web:
-    image: nickpeihl/sophox-query-gui:dockerize
+    build: https://github.com/nickpeihl/wikidata-query-gui.git#dockerize
     ports:
       - "80"
     networks:
       - wdqs_conn
-    logging:
-      driver: none
+    depends_on:
+      - wdqs
   proxy:
     image: nginx
     volumes: 
       - ./sophox.template:/etc/nginx/conf.d/sophox.template
     ports:
-      - "80:8080"
+      - "8080:80"
     networks:
       - wdqs_conn
       - postgres_conn
-    logging:
-      driver: none
-    depends_on:
-      - osmregions
-      - mapshaper
-      - web
     command: sh -c "envsubst '$$NGINX_HOST $$NGINX_PORT' < /etc/nginx/conf.d/sophox.template > /etc/nginx/conf.d/default.conf && nginx-debug -g 'daemon off;'" 
     env_file: .env
 networks:
